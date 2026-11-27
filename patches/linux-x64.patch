@@ -299,7 +299,7 @@ index 39ff954b..b53b1267 100644
    readonly platform: NodeJS.Platform
    readonly arch: string
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index d5522e3d..ca1040cc 100644
+index d5522e3d..4f959209 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
 @@ -66,7 +66,7 @@ export function createElectronBuilderConfig(
@@ -311,8 +311,14 @@ index d5522e3d..ca1040cc 100644
    if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
    const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
    if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
-@@ -79,7 +79,9 @@ export function createElectronBuilderConfig(
+@@ -77,9 +77,15 @@ export function createElectronBuilderConfig(
+   let windowsCode = []
+   const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
      `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`,
++    // Linux engines carry a libc suffix (linux-x64-glibc); keep the native prebuilds outside the archive.
++    ...(resolvedPlatform === 'linux'
++      ? [`**/node_modules/@deepseek-ai/libreoffice-kit-linux-${resolvedArch}-*/**/*`]
++      : []),
      // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
      // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
 -    '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
@@ -322,7 +328,7 @@ index d5522e3d..ca1040cc 100644
    const windowsSigner = packagesWindows && !unsigned
      ? createWindowsTokenSigner({
          certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
-@@ -256,6 +258,7 @@ export function createElectronBuilderConfig(
+@@ -256,6 +262,7 @@ export function createElectronBuilderConfig(
      },
      linux: {
        category: 'Development',
@@ -620,3 +626,24 @@ index 5d16769a..1522b425 100644
  console.log('desktop-node-script-ok')
  `)
      const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => /^(?:systemroot|windir|comspec|LD_LIBRARY_PATH)$/iu.test(name)))
+diff --git a/scripts/libreoffice-packages.mjs b/scripts/libreoffice-packages.mjs
+index 8dca95bf..f087ba7d 100644
+--- a/scripts/libreoffice-packages.mjs
++++ b/scripts/libreoffice-packages.mjs
+@@ -12,7 +12,15 @@ import { isAbsolute, join, relative, sep } from 'node:path'
+  */
+ export function selectOfficeEngine(manifest, target) {
+   const native = `${target.platform}-${target.arch}`
+-  return Object.hasOwn(manifest.optionalDependencies ?? {}, `@deepseek-ai/libreoffice-kit-${native}`) ? native : 'wasm'
++  const dependencies = manifest.optionalDependencies ?? {}
++  // Linux prebuilts are published per libc (linux-x64-glibc), so prefer the flavor this loader can use.
++  const libc = target.platform === 'linux'
++    ? (process.report?.getReport?.()?.header?.glibcVersionRuntime === undefined ? 'musl' : 'glibc')
++    : undefined
++  for (const candidate of libc === undefined ? [native] : [`${native}-${libc}`, native]) {
++    if (Object.hasOwn(dependencies, `@deepseek-ai/libreoffice-kit-${candidate}`)) return candidate
++  }
++  return 'wasm'
+ }
+ 
+ /**

@@ -17,6 +17,12 @@ APPDIR=$WORK/squashfs-root
 grep -q 'dsh-base' "$WORK/dump.yml"
 echo "cli: dump-config ok ($(wc -l < "$WORK/dump.yml") lines)"
 
+if [[ -d $APPDIR/resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/libreoffice-kit-linux-x64-glibc ]]; then
+  echo "office: native LibreOfficeKit (linux-x64-glibc)"
+else
+  echo "office: WebAssembly fallback (no Linux engine at the pinned kit version)"
+fi
+
 # Boot the window briefly and fail on the startup errors this port had to fix.
 if [[ -n ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
   set +e
