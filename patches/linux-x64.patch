@@ -1,42 +1,41 @@
 diff --git a/apps/desktop-host/src/cli.ts b/apps/desktop-host/src/cli.ts
-index 10757b7a..22a0573d 100644
+index 10757b7a..bff1d36f 100644
 --- a/apps/desktop-host/src/cli.ts
 +++ b/apps/desktop-host/src/cli.ts
-@@ -3,6 +3,18 @@
+@@ -2,6 +2,17 @@
+ 
  import { basename, delimiter, dirname, join, resolve } from 'node:path'
  import { runCli } from '@deepseek-ai/dsh/lib/bin.js'
- 
-+/**
-+ * Locate the directory that carries the Desktop runtime payload.
-+ * A packaged dsh sits inside `app.asar`, or unpacked beside it on Linux; a prepared dsh sits in its target directory.
-+ * @param runtimeDir - Prepared, ASAR-contained, or unpacked dsh directory.
-+ * @returns Directory whose `runtime/` child holds the payload.
-+ */
-+export function desktopSupportDirectory(runtimeDir: string): string {
-+  const parent = dirname(runtimeDir)
-+  const name = basename(parent)
-+  return name === 'app.asar' || name === 'app.asar.unpacked' ? dirname(parent) : parent
-+}
++import { desktopSupportDirectory } from './runtime-layout.ts'
 +
++/**
++ * Locate the archive containing a packaged runtime.
++ * @param runtimeDir - Prepared or ASAR-contained runtime directory.
++ * @returns Parent archive path, or undefined for a prepared directory.
++ */
++export function runtimeArchivePath(runtimeDir: string): string | undefined {
++  const parent = dirname(runtimeDir)
++  return basename(parent) === 'app.asar' ? parent : undefined
++}
+ 
  /**
   * Locate the archive containing a packaged runtime.
-  * @param runtimeDir - Prepared or ASAR-contained runtime directory.
-@@ -39,5 +51,5 @@ if (import.meta.main) {
+@@ -39,5 +50,4 @@ if (import.meta.main) {
      await installWindowsCliSignals()
    }
    const runtimeDir = resolve(import.meta.dirname, '../../../..')
 -  await runDesktopCli(join(dirname(runtimeArchivePath(runtimeDir) ?? runtimeDir), 'runtime'))
-+  await runDesktopCli(join(desktopSupportDirectory(runtimeDir), 'runtime'))
- }
+-}
++  await runDesktopCli(join(desktopSupportDirectory(runtimeDir), 'runtime'))}
 diff --git a/apps/desktop-host/src/index.ts b/apps/desktop-host/src/index.ts
-index 966e51a3..3a897174 100644
+index 966e51a3..ef559f6c 100644
 --- a/apps/desktop-host/src/index.ts
 +++ b/apps/desktop-host/src/index.ts
 @@ -4,6 +4,7 @@ import { delimiter, join } from 'node:path'
  import { randomUUID } from 'node:crypto'
  import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
  import { formatFatalDiagnostic } from './fatal-diagnostic.ts'
-+import { desktopSupportDirectory } from './cli.ts'
++import { desktopSupportDirectory } from './runtime-layout.ts'
  import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
  import { runProfile } from '@deepseek-ai/dsh/profile-boot'
  import type {} from '@deepseek-ai/dsh-client-connection'
