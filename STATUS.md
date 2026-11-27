@@ -2,23 +2,23 @@
 
 ## Onde parei
 
-Build completo verde (`exit=0`) com `patch` aplicado sobre `dsh-v0.2.2-rc.5`:
+Fluxo do objetivo validado de ponta a ponta:
 
-- smoke empacotado: `{"node":"24.21.0","platform":"linux","arch":"x64","koffi":true,"sharp":true,"html":true,"pty":true,"pnpm":true,"grep":true,"glob":true}`
-- CLI offline plugin install/remove: passou
-- Host subiu e serviu web (`dsh web: http://127.0.0.1:...`)
-- Office: DOCX, XLSX, PPTX → PDF, image rendering, conversion, recalculation
-- `scripts/verify-appimage.sh dist/*.AppImage` → `cli: dump-config ok (1287 linhas)` / `boot: janela abriu sem erro fatal`
-- `dsh --profile headless "diga ok"` → só `MISSING_CREDENTIAL: llm-deepseek` (esperado sem chave)
+- `scripts/build.sh dsh-v0.2.2-rc.5` → `exit=0`, AppImage 358 MB em `dist/`
+- `scripts/verify-appimage.sh dist/*.AppImage` → `cli: dump-config ok (1287 lines)` / `boot: window opened without fatal error`
+- CI `45923215870` → success em 6m39s; release `v0.2.2-rc.5` publicado por `github-actions[bot]`
+- Artefato baixado do Release → `verify_exit=0`
+- `install.sh` a partir do Release → sha256 `1e060f928f1a6afb`, idêntico ao artefato do CI
+- Runtime sem chave: `dsh --profile headless "diga ok"` → `MISSING_CREDENTIAL` (esperado)
 
 ## Próximo passo
 
-- Rodar `scripts/build.sh` (validação do fluxo completo: clone → patch → install → AppImage).
-- Com `DEEPSEEK_API_KEY` exportada, provar uma tarefa real: `dsh --profile headless "liste os arquivos"`.
-- Publicar no GitHub e disparar o workflow `build-appimage`.
+- Provar tarefa real de modelo: exige `DEEPSEEK_API_KEY` ou sign-in na janela.
+- Opcional: `desktopName`/`syncDesktopName` para casar WM_CLASS (aviso do electron-builder).
+- Opcional: investigar `desktop login shell: /usr/bin/bash failed (timeout)`.
 
 ## Pendências conhecidas
 
-- `desktop login shell: /usr/bin/bash failed (timeout)` no boot; sem impacto observado.
-- `desktopName` não definido: o WM_CLASS da janela não casa com o `.desktop` (aviso do electron-builder).
-- Patch com 21 arquivos; reaplicar sempre sobre a tag da vez.
+- Sem auto-update oficial no Linux: atualização = novo Release / `install.sh`.
+- Patch com 22 arquivos e 607 linhas; aplicar sobre a tag da vez.
+- AppImage não preserva SUID do chrome-sandbox: launcher usa `--no-sandbox`.
