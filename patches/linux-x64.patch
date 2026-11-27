@@ -38,6 +38,27 @@ index 966e51a3..ef559f6c 100644
    const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
    const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
    reportSkippedBundles('dsh', profile)
+diff --git a/apps/desktop-host/src/runtime-layout.ts b/apps/desktop-host/src/runtime-layout.ts
+new file mode 100644
+index 00000000..c8052314
+--- /dev/null
++++ b/apps/desktop-host/src/runtime-layout.ts
+@@ -0,0 +1,15 @@
++/** Locate the directory that carries the Desktop runtime payload, in every layout the app ships. */
++
++import { basename, dirname } from 'node:path'
++
++/**
++ * Resolve the directory whose `runtime/` child holds interpreters, pnpm and the primary runtime.
++ * A packaged dsh sits inside `app.asar`, or unpacked beside it on Linux; a prepared dsh sits directly in its target directory.
++ * @param runtimeDir - Prepared, ASAR-contained, or unpacked dsh directory.
++ * @returns Directory that carries the runtime payload.
++ */
++export function desktopSupportDirectory(runtimeDir: string): string {
++  const parent = dirname(runtimeDir)
++  const name = basename(parent)
++  return name === 'app.asar' || name === 'app.asar.unpacked' ? dirname(parent) : parent
++}
 diff --git a/apps/desktop/cli/dsh b/apps/desktop/cli/dsh
 index ee657a3d..e4146054 100644
 --- a/apps/desktop/cli/dsh

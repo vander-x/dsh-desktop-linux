@@ -17,9 +17,15 @@ if [[ $CURRENT != "$VERSION" ]]; then
   rm -rf "$ROOT/.build/upstream"
   git clone --depth 1 --branch "$VERSION" "$UPSTREAM" "$ROOT/.build/upstream"
 fi
-# Reapplied every run so the patch follows edits here; a clean clone makes it a no-op on the second pass.
-git -C "$ROOT/.build/upstream" checkout -- .
-git -C "$ROOT/.build/upstream" apply "$ROOT/patches/linux-x64.patch"
+# Apply once; a checkout that already carries the patch is reused instead of failing.
+if git -C "$ROOT/.build/upstream" apply --check "$ROOT/patches/linux-x64.patch" 2>/dev/null; then
+  git -C "$ROOT/.build/upstream" apply "$ROOT/patches/linux-x64.patch"
+elif git -C "$ROOT/.build/upstream" apply --reverse --check "$ROOT/patches/linux-x64.patch" 2>/dev/null; then
+  echo "patch já aplicado, reutilizando checkout"
+else
+  echo "checkout inconsistente: apague .build/upstream e rode de novo" >&2
+  exit 1
+fi
 
 cd "$ROOT/.build/upstream"
 # The host typecheck needs more heap than Node's default, and gate parallelism drives peak memory.
