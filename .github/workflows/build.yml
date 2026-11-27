@@ -16,6 +16,10 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    env:
+      # The host typecheck needs more heap than the runner default, and gate parallelism drives peak memory.
+      NODE_OPTIONS: --max-old-space-size=6144
+      DSH_GATE_CONCURRENCY: '2'
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +50,11 @@ jobs:
 
       - if: steps.version.outputs.skip == '0'
         run: scripts/build.sh "dsh-v${{ steps.version.outputs.version }}"
+
+      - if: steps.version.outputs.skip == '0'
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb libfuse2
+          xvfb-run -a scripts/verify-appimage.sh dist/*.AppImage
 
       - if: steps.version.outputs.skip == '0'
         env:
