@@ -40,10 +40,23 @@ Requer Node ≥ 24.22.3, pnpm 11.28.5, `tar` com xz e ~10 GB livres. Saída em `
 
 Se o build estourar memória em máquina de 8 GB, use `DSH_GATE_CONCURRENCY=1`.
 
+## Requisitos (medidos no binário)
+
+| Dependência | Versão mínima | Como foi medido |
+|---|---|---|
+| glibc | 2.28 | maior símbolo em `runtime/bin/node` (`objdump -T`) |
+| libstdc++ | `GLIBCXX_3.4.21` (GCC 5+) | `objdump -T` em `node` e `sharp` |
+| Electron | glibc 2.25 | `objdump -T` em `deepseek-harness` |
+| Libs de desktop | GTK3, NSS, ALSA, X11/Wayland | `ldd` do binário Electron |
+
+Na prática: Ubuntu 20.04+, Debian 10+, Fedora 30+, Arch, qualquer desktop moderno. Não roda em
+distros com glibc < 2.28 (RHEL 7, Ubuntu 16.04) nem em ambiente sem servidor gráfico.
+
 ## Limitações
 
-- Build não oficial e sem assinatura. AppImage exige `libfuse2` (ou `--appimage-extract-and-run`).
-- Compilado em Ubuntu 24.04: glibc ≥ 2.39 (Arch atual cumpre).
+- Build não oficial e sem assinatura. Para executar direto precisa de `libfuse2`; sem ele use
+  `--appimage-extract-and-run`. O launcher usa `--no-sandbox` porque o AppImage não preserva o
+  `chrome-sandbox` SUID.
 - Office usa o engine WebAssembly, não o LibreOfficeKit nativo (o nativo Linux existe no npm como
   `libreoffice-kit-linux-x64-glibc`, mas o seletor do upstream pede `linux-x64` e cai no wasm).
 - Sem auto-update pelo servidor da DeepSeek (não há feed Linux): atualize pelo release deste repo.
