@@ -14,7 +14,7 @@ APPDIR=$WORK/squashfs-root
 # The bundled CLI runs the same runtime the desktop Host uses.
 "$APPDIR/resources/runtime/cli/bin/dsh" --profile web --dump-config > "$WORK/dump.yml"
 grep -q 'dsh-base' "$WORK/dump.yml"
-echo "cli: dump-config ok ($(wc -l < "$WORK/dump.yml") linhas)"
+echo "cli: dump-config ok ($(wc -l < "$WORK/dump.yml") lines)"
 
 # Boot the window briefly and fail on the startup errors this port had to fix.
 if [[ -n ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
@@ -22,11 +22,11 @@ if [[ -n ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
   timeout 25 "$APPDIR/deepseek-harness" --no-sandbox > "$WORK/boot.log" 2>&1
   set -e
   if grep -qE 'desktop policy: unsupported platform|SIGSEGV|Cannot find module' "$WORK/boot.log"; then
-    echo "boot: FALHOU" >&2
+    echo "boot: FAILED" >&2
     tail -20 "$WORK/boot.log" >&2
     exit 1
   fi
-  echo "boot: janela abriu sem erro fatal"
+  echo "boot: window opened without fatal error"
 else
-  echo "boot: sem display, pulado"
+  echo "boot: no display, skipped"
 fi
