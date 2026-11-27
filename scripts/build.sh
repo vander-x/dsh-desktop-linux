@@ -47,4 +47,6 @@ fi
 pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64 -- --unsigned
 
 cp apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/*.AppImage "$ROOT/dist/"
+# The Office upgrade above mutates the workspace manifests; leave the checkout ready for update-patch.sh.
+git checkout -- packages/bundle/web-app/package.json packages/document/office-kit/package.json pnpm-lock.yaml pnpm-workspace.yaml 2>/dev/null || true
 ls -lh "$ROOT/dist"

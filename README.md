@@ -9,7 +9,7 @@ An **unofficial Linux build** of [DeepSeek Harness Desktop](https://github.com/d
 
 DeepSeek ships desktop installers for macOS and Windows only. The upstream repository already contains everything Linux needs: an `electron-builder` `linux: AppImage` target, a Landlock sandbox build, and a WebAssembly fallback for the LibreOfficeKit office engine. This repository carries the small platform patch that closes the remaining gaps and a CI job that rebuilds the AppImage from every new upstream release.
 
-- **Upstream code, no product changes** — 22 files patched, all listed and explained below.
+- **Upstream code, no product changes** — 23 files patched, all listed and explained below.
 - **Reproducible** — pinned upstream tag, patch applied on a clean checkout, build in public CI.
 - **Auditable** — every claim in this README has the command that proves it.
 - **Verified before publishing** — no release is produced from a developer machine; CI runs the packaged smoke and the AppImage check first.
@@ -122,7 +122,7 @@ Every hunk is upstream code; the columns say what breaks without it.
 | `smoke-packaged-runtime.ts`, `tests/fixtures/pnpm-smoke.mjs` | run the packaged smoke on the real Node and accept it | the smoke asserted Electron-only `process.versions.electron` / `--expose-internals` |
 | `scripts/libreoffice-packages.mjs` | prefer the `linux-<arch>-glibc` engine before falling back to WebAssembly | the selector built `linux-x64`, which never matches the published `linux-x64-glibc` package |
 
-Full diff: `patches/linux-x64.patch` (607 lines, 22 files).
+Full diff: `patches/linux-x64.patch` (649 lines, 23 files).
 
 ## Audit it yourself
 
