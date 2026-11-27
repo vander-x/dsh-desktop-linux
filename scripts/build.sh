@@ -34,9 +34,11 @@ export DSH_GATE_CONCURRENCY=${DSH_GATE_CONCURRENCY:-2}
 # CI=true keeps lefthook's postinstall from rewriting the user's global core.hooksdir.
 CI=true pnpm install --frozen-lockfile
 
-# Native Office engine: upstream pins a kit release without Linux prebuilts until 0.2.4, so opt in when it is missing.
-if ! node -e "const d=require('./node_modules/@deepseek-ai/libreoffice-kit/package.json');process.exit(Object.keys(d.optionalDependencies??{}).some(k=>k.includes('linux'))?0:1)"; then
-  echo "office: installed kit has no Linux engine, upgrading to 0.2.4"
+# Native Office engine: upstream pins kit 0.2.3, the first release with Linux prebuilts is 0.2.4.
+# Only that known version is upgraded, so a newer upstream pin is never downgraded.
+KIT_VERSION=$(pnpm --filter @deepseek-ai/dsh-office-kit exec node -p "require('@deepseek-ai/libreoffice-kit/package.json').version" 2>/dev/null || true)
+if [[ $KIT_VERSION == "0.2.3" ]]; then
+  echo "office: kit 0.2.3 has no Linux engine, upgrading to 0.2.4"
   pnpm --filter @deepseek-ai/dsh-office-kit --filter @deepseek-ai/dsh-web-app add @deepseek-ai/libreoffice-kit@0.2.4
 fi
 
