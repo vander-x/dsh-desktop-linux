@@ -4,6 +4,7 @@
 set -euo pipefail
 
 IMAGE=$(realpath "${1:?pass the AppImage path}")
+chmod +x "$IMAGE"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
