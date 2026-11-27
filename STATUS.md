@@ -2,24 +2,26 @@
 
 ## Onde parei
 
-- Build local `exit=0` com tray, ícone e **Office nativo**: AppImage de 411 MB em `dist/`.
-- `verify-appimage.sh` → `cli: dump-config ok (1287 lines)` / `office: native LibreOfficeKit (linux-x64-glibc)` / `boot: window opened without fatal error`.
-- App instalado e aberto: janela `deepseek-ai-dsh-desktop | DSH Local Build`, Host em `127.0.0.1`, tray registrado no `StatusNotifierWatcher` (quickshell).
-- CI run `45937090392` em andamento para republicar `v0.2.2-rc.5` (release antigo removido).
+Ciclo completo fechado e verificado:
 
-## Decisões
+- `scripts/build.sh dsh-v0.2.2-rc.5` → `exit=0` (após reboot, `/tmp` limpo)
+- `scripts/verify-appimage.sh dist/*.AppImage` → `cli: dump-config ok (1287 lines)` / `office: native LibreOfficeKit (linux-x64-glibc)` / `boot: window opened without error fatal` / `exit=0`
+- AppImage em `dist/`: 411 MB (`430.040.289` bytes)
+- Release publicado pelo CI (`v0.2.2-rc.5`, asset de 430 MB, digest `beeba970…`); hash local difere por não ser build bit-reprodutível
+- App instalado: `~/.local/opt/dsh-desktop/dsh.AppImage`, launcher `~/.local/bin/dsh-desktop`, entrada `.desktop`, ícone 1024px
+- Tray registrado no `StatusNotifierWatcher` do quickshell; janela `deepseek-ai-dsh-desktop`
 
-- Office nativo entra via `pnpm add @deepseek-ai/libreoffice-kit@0.2.4` no `build.sh`, **não** no patch:
-  alterar o lockfile quebraria a aplicação do patch em tags futuras.
-- Seletor `linux-<arch>-glibc` corrigido no patch, para quando o upstream adotar 0.2.4 sozinho.
+## Causa das falhas intermitentes
+
+`/tmp` é tmpfs de 5,3 GB e enchia durante empacotamento (`ETIMEDOUT`, `Host readiness exceeded 120s`, `write -122`). `build.sh` agora exporta `TMPDIR="$ROOT/.build/tmp"`.
 
 ## Próximo passo
 
-- Confirmar run do CI e baixar o AppImage do Release novo.
-- Tarefa real de modelo: exige `DEEPSEEK_API_KEY` ou sign-in na janela.
+- Tarefa real de modelo: precisa de `DEEPSEEK_API_KEY` em `~/.local/share/dsh/.env` ou sign-in na janela. Sem isso o runtime para em `MISSING_CREDENTIAL`.
+- Opcional: `desktopName`/`syncDesktopName` para o aviso de WM_CLASS.
 
 ## Pendências conhecidas
 
-- `desktopName` não definido: aviso do electron-builder sobre WM_CLASS (janela funciona).
+- Auto-update oficial não existe no Linux: atualização = novo Release / `install.sh`.
 - `desktop login shell: /usr/bin/bash failed (timeout)` em alguns boots.
-- Smoke do pnpm já estourou timeout uma vez com load average 9,7; re-executar em máquina ociosa resolveu.
+- Patch com 22 arquivos; o upgrade do kit Office para 0.2.4 vive no `build.sh`, não no patch.
