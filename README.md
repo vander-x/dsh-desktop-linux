@@ -1,14 +1,18 @@
 # DeepSeek Harness Desktop for Linux
 
 [![build-appimage](https://github.com/vander-x/dsh-desktop-linux/actions/workflows/build.yml/badge.svg)](https://github.com/vander-x/dsh-desktop-linux/actions/workflows/build.yml)
+[![latest release](https://img.shields.io/github/v/release/vander-x/dsh-desktop-linux?label=download&sort=semver)](https://github.com/vander-x/dsh-desktop-linux/releases/latest)
+[![platform](https://img.shields.io/badge/platform-linux%20x86__64-blue)](https://github.com/vander-x/dsh-desktop-linux#requirements)
+[![license](https://img.shields.io/badge/app%20code-MIT-green)](https://github.com/deepseek-ai/deepseek-harness)
 
 An **unofficial Linux build** of [DeepSeek Harness Desktop](https://github.com/deepseek-ai/deepseek-harness) — DeepSeek's open-source agent harness — packaged as a single AppImage.
 
 DeepSeek ships desktop installers for macOS and Windows only. The upstream repository already contains everything Linux needs: an `electron-builder` `linux: AppImage` target, a Landlock sandbox build, and a WebAssembly fallback for the LibreOfficeKit office engine. This repository carries the small platform patch that closes the remaining gaps and a CI job that rebuilds the AppImage from every new upstream release.
 
-- **Upstream code, unmodified in spirit** — 22 files patched, all listed and explained below.
+- **Upstream code, no product changes** — 22 files patched, all listed and explained below.
 - **Reproducible** — pinned upstream tag, patch applied on a clean checkout, build in public CI.
 - **Auditable** — every claim in this README has the command that proves it.
+- **Verified before publishing** — no release is produced from a developer machine; CI runs the packaged smoke and the AppImage check first.
 - **Self-updating repository** — a daily workflow checks `@deepseek-ai/dsh@latest` and publishes a new release when upstream moves.
 
 ---
@@ -16,14 +20,15 @@ DeepSeek ships desktop installers for macOS and Windows only. The upstream repos
 ## Quick start
 
 ```sh
-# 1. Download the newest AppImage from Releases
-#    https://github.com/vander-x/dsh-desktop-linux/releases/latest
-chmod +x DeepSeek-Harness-*.AppImage
-./DeepSeek-Harness-*.AppImage
+# One line: fetch, install the launcher and the desktop entry
+curl -fsSL https://raw.githubusercontent.com/vander-x/dsh-desktop-linux/master/install.sh | bash
 
-# 2. Or install it with a desktop entry and a launcher on PATH
-DSH_DESKTOP_REPO=vander-x/dsh-desktop-linux ./install.sh
+# Or manually, from https://github.com/vander-x/dsh-desktop-linux/releases/latest
+chmod +x deepseek-harness-*-x86_64-unsigned.AppImage
+./deepseek-harness-*-x86_64-unsigned.AppImage --no-sandbox
 ```
+
+Then open **DeepSeek Harness** from the application menu, or run `dsh-desktop`.
 
 First launch asks you to **sign in** to a DeepSeek account or paste an API key; that credential is what the agent uses. Without it the runtime stops with `MISSING_CREDENTIAL`, by design.
 
@@ -131,8 +136,8 @@ grep -E '^\+.*(eval|exec\(|child_process|https?://)' patches/linux-x64.patch | w
 
 # 3. The artifact is a real AppImage with the expected runtime
 scripts/verify-appimage.sh dist/*.AppImage
-# → cli: dump-config ok (1287 linhas)
-# → boot: janela abriu sem erro fatal
+# → cli: dump-config ok (1287 lines)
+# → boot: window opened without fatal error
 
 # 4. The packaged runtime loads native modules on real Node
 #    (this is what the pipeline's smoke prints on success)
@@ -172,6 +177,19 @@ download the new release.
   APIs from the Host process will not work.
 - **Login shell probe warning** (`desktop login shell: /usr/bin/bash failed`) appears on some
   setups; the terminal feature still opens a shell.
+
+## FAQ
+
+**Is this official?** No. It is a community build; the application code is DeepSeek's (MIT).
+**Where do the binaries come from?** GitHub Actions builds them from the upstream tag named in the
+release notes. The workflow, patch and scripts are in this repository.
+**Does it phone home?** It runs DeepSeek's own app; upstream telemetry settings apply
+(`DSH_TELEMETRY_MODE=DISABLED` disables it).
+**Can I keep using my DeepSeek account?** Yes — the app signs in normally; an API key also works.
+**Why not just use the web app?** This is the desktop shell: local files, terminal, tray, background
+tasks. Same UI, real process.
+**Will my plugins work?** Plugins that only use the harness APIs do. Plugins that call Electron APIs
+from the Host process do not, because the Host runs on Node here.
 
 ## License and credits
 

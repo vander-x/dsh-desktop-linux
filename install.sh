@@ -2,7 +2,7 @@
 # Install the newest AppImage published by this repository.
 set -euo pipefail
 
-REPO=${DSH_DESKTOP_REPO:?set DSH_DESKTOP_REPO=owner/repo}
+REPO=${DSH_DESKTOP_REPO:-vander-x/dsh-desktop-linux}
 DEST="$HOME/.local/opt/dsh-desktop"
 URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
   grep -oE 'https://[^"]+\.AppImage' | head -1)
