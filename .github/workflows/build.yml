@@ -1,0 +1,59 @@
+name: build-appimage
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: appimage
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: version
+        run: |
+          version=$(npm view @deepseek-ai/dsh@latest version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - if: steps.version.outputs.skip == '0'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libarchive-tools
+
+      - if: steps.version.outputs.skip == '0'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - if: steps.version.outputs.skip == '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - if: steps.version.outputs.skip == '0'
+        run: scripts/build.sh "dsh-v${{ steps.version.outputs.version }}"
+
+      - if: steps.version.outputs.skip == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          gh release create "$tag" dist/*.AppImage \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DeepSeek Harness ${{ steps.version.outputs.version }} (Linux)" \
+            --notes "Unofficial AppImage built from upstream tag dsh-v${{ steps.version.outputs.version }} with patches/linux-x64.patch. Requires glibc 2.39+." \
+            || gh release upload "$tag" dist/*.AppImage --clobber --repo "$GITHUB_REPOSITORY"

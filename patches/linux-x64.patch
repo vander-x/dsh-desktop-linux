@@ -1,0 +1,584 @@
+diff --git a/apps/desktop-host/src/cli.ts b/apps/desktop-host/src/cli.ts
+index 10757b7a..22a0573d 100644
+--- a/apps/desktop-host/src/cli.ts
++++ b/apps/desktop-host/src/cli.ts
+@@ -3,6 +3,18 @@
+ import { basename, delimiter, dirname, join, resolve } from 'node:path'
+ import { runCli } from '@deepseek-ai/dsh/lib/bin.js'
+ 
++/**
++ * Locate the directory that carries the Desktop runtime payload.
++ * A packaged dsh sits inside `app.asar`, or unpacked beside it on Linux; a prepared dsh sits in its target directory.
++ * @param runtimeDir - Prepared, ASAR-contained, or unpacked dsh directory.
++ * @returns Directory whose `runtime/` child holds the payload.
++ */
++export function desktopSupportDirectory(runtimeDir: string): string {
++  const parent = dirname(runtimeDir)
++  const name = basename(parent)
++  return name === 'app.asar' || name === 'app.asar.unpacked' ? dirname(parent) : parent
++}
++
+ /**
+  * Locate the archive containing a packaged runtime.
+  * @param runtimeDir - Prepared or ASAR-contained runtime directory.
+@@ -39,5 +51,5 @@ if (import.meta.main) {
+     await installWindowsCliSignals()
+   }
+   const runtimeDir = resolve(import.meta.dirname, '../../../..')
+-  await runDesktopCli(join(dirname(runtimeArchivePath(runtimeDir) ?? runtimeDir), 'runtime'))
++  await runDesktopCli(join(desktopSupportDirectory(runtimeDir), 'runtime'))
+ }
+diff --git a/apps/desktop-host/src/index.ts b/apps/desktop-host/src/index.ts
+index 966e51a3..3a897174 100644
+--- a/apps/desktop-host/src/index.ts
++++ b/apps/desktop-host/src/index.ts
+@@ -4,6 +4,7 @@ import { delimiter, join } from 'node:path'
+ import { randomUUID } from 'node:crypto'
+ import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+ import { formatFatalDiagnostic } from './fatal-diagnostic.ts'
++import { desktopSupportDirectory } from './cli.ts'
+ import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
+ import { runProfile } from '@deepseek-ai/dsh/profile-boot'
+ import type {} from '@deepseek-ai/dsh-client-connection'
+@@ -22,7 +23,7 @@ async function main(): Promise<void> {
+   const runtimeDir = process.argv[2] as string
+   const projectDir = process.argv[3] as string
+   // Set before the launch-environment snapshot and profile evaluation; empty means the payload sits beside the runtime directory.
+-  process.env.DSH_PRIMARY_RUNTIME = process.argv[4] || join(runtimeDir, '..', 'runtime', 'primary-runtime')
++  process.env.DSH_PRIMARY_RUNTIME = process.argv[4] || join(desktopSupportDirectory(runtimeDir), 'runtime', 'primary-runtime')
+   const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
+   reportSkippedBundles('dsh', profile)
+diff --git a/apps/desktop/package.json b/apps/desktop/package.json
+index 2712ca4d..9c642aad 100644
+--- a/apps/desktop/package.json
++++ b/apps/desktop/package.json
+@@ -37,6 +37,7 @@
+     "package:mac:x64:unsigned": "tsx scripts/package-target.ts mac-x64 --unsigned",
+     "package:mac:x64:dir": "tsx scripts/package-target.ts mac-x64 --dir",
+     "package:win:x64": "tsx scripts/package-target.ts win-x64",
++    "package:linux:x64": "tsx scripts/package-target.ts linux-x64",
+     "package:win:x64:unsigned": "tsx scripts/package-target.ts win-x64 --unsigned",
+     "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",
+     "upload:mac:arm64": "tsx scripts/upload-target.ts mac-arm64",
+diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+index c58df5a0..f85721d2 100644
+--- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
++++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+@@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
+ export type DesktopAutoUpdateEnvironment = 'test' | 'production'
+ 
+ /** Directory name of one supported Desktop release target. */
+-export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
++export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /**
+  * Name the fixed installer object shared by uploading and cache refresh.
+diff --git a/apps/desktop/scripts/desktop-auto-update-environment.mjs b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+index 24aaa0ea..c1f80511 100644
+--- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
++++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+@@ -33,7 +33,7 @@ const UPDATE_ENVIRONMENTS = {
+   },
+ }
+ 
+-const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
++const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
+ 
+ /**
+  * Name the fixed installer object shared by uploading and cache refresh.
+@@ -72,7 +72,7 @@ export function resolveDesktopAutoUpdateEnvironment(env) {
+  * Resolve one supported platform and architecture to its update directory.
+  * @param {NodeJS.Platform} platform - Target Node.js platform.
+  * @param {string} arch - Target Node.js architecture.
+- * @returns {'mac-arm64' | 'mac-x64' | 'win-x64'} Update target directory.
++ * @returns {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} Update target directory.
+  */
+ export function resolveDesktopAutoUpdateTarget(platform, arch) {
+   const os = platform === 'darwin' ? 'mac' : platform === 'win32' ? 'win' : platform
+@@ -85,7 +85,7 @@ export function resolveDesktopAutoUpdateTarget(platform, arch) {
+ 
+ /**
+  * Return the local completion record filename for one packaged target.
+- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target - Supported release target.
++ * @param {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} target - Supported release target.
+  * @returns {string} Filename stored beside electron-builder artifacts.
+  */
+ export function desktopBuildRecordFilename(target) {
+@@ -161,6 +161,18 @@ function httpsOrigin(value, name) {
+  * @throws {Error} When the test deployment lacks a valid HTTPS origin or a 32-character lowercase hexadecimal release ID.
+  */
+ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
++  // Linux builds are community distributions: no updater feed is published for them.
++  if (platform === 'linux') {
++    return {
++      environment: 'production',
++      channel: 'stable',
++      target: `linux-${arch}`,
++      origin: 'https://download.deepseek.com',
++      keyPrefix: `dsh-desk/feeds/linux-${arch}`,
++      binaryKeyPrefix: `dsh-desk/bin/linux-${arch}/stable`,
++      publicUrl: `https://download.deepseek.com/dsh-desk/feeds/linux-${arch}/`,
++    }
++  }
+   const channel = resolveDesktopUpdateChannel(env)
+   const environment = resolveDesktopAutoUpdateEnvironment(env)
+   const target = resolveDesktopAutoUpdateTarget(platform, arch)
+diff --git a/apps/desktop/scripts/desktop-build-paths.d.mts b/apps/desktop/scripts/desktop-build-paths.d.mts
+index 910f3032..3367ce3a 100644
+--- a/apps/desktop/scripts/desktop-build-paths.d.mts
++++ b/apps/desktop/scripts/desktop-build-paths.d.mts
+@@ -46,7 +46,7 @@ export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget, environ
+  * @returns Platform and architecture of the prepared payload.
+  */
+ export function desktopTargetPlatform(target: DesktopAutoUpdateTarget): {
+-  readonly platform: 'darwin' | 'win32'
++  readonly platform: 'darwin' | 'win32' | 'linux'
+   readonly arch: 'arm64' | 'x64'
+ }
+ 
+diff --git a/apps/desktop/scripts/desktop-build-paths.mjs b/apps/desktop/scripts/desktop-build-paths.mjs
+index edfd9cdf..772e28f8 100644
+--- a/apps/desktop/scripts/desktop-build-paths.mjs
++++ b/apps/desktop/scripts/desktop-build-paths.mjs
+@@ -4,14 +4,14 @@ import { isAbsolute, join, resolve } from 'node:path'
+ 
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const BUILD_ROOT = join(APP_ROOT, '.desktop-build')
+-const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
++const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
+ 
+ /**
+  * Resolve the fixed build target selected by a packaging environment.
+  * @param {NodeJS.ProcessEnv} env - Packaging environment.
+  * @param {NodeJS.Platform} hostPlatform - Build-host platform used when no target override exists.
+  * @param {string} hostArch - Build-host architecture used when no target override exists.
+- * @returns {'mac-arm64' | 'mac-x64' | 'win-x64'} Supported Desktop target name.
++ * @returns {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} Supported Desktop target name.
+  */
+ export function resolveDesktopBuildTarget(
+   env = process.env,
+@@ -26,7 +26,7 @@ export function resolveDesktopBuildTarget(
+   if (!SUPPORTED_TARGETS.has(target)) {
+     throw new Error(`desktop build paths: unsupported target ${target}`)
+   }
+-  return /** @type {'mac-arm64' | 'mac-x64' | 'win-x64'} */ (target)
++  return /** @type {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} */ (target)
+ }
+ 
+ function assertSupportedTarget(target) {
+@@ -70,8 +70,8 @@ export function desktopTargetBuildPaths(target, environment = process.env) {
+ /**
+  * Return the platform and architecture of the payload one release target prepares.
+  * Windows is prepared as x64 only, so this differs from the build host on an arm64 Windows machine.
+- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target - Supported Desktop target name.
+- * @returns {{ platform: 'darwin' | 'win32', arch: 'arm64' | 'x64' }} Platform and architecture of the prepared payload.
++ * @param {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} target - Supported Desktop target name.
++ * @returns {{ platform: 'darwin' | 'win32' | 'linux', arch: 'arm64' | 'x64' }} Platform and architecture of the prepared payload.
+  */
+ export function desktopTargetPlatform(target) {
+   assertSupportedTarget(target)
+@@ -79,6 +79,7 @@ export function desktopTargetPlatform(target) {
+     'mac-arm64': { platform: 'darwin', arch: 'arm64' },
+     'mac-x64': { platform: 'darwin', arch: 'x64' },
+     'win-x64': { platform: 'win32', arch: 'x64' },
++    'linux-x64': { platform: 'linux', arch: 'x64' },
+   })
+   return targets[target]
+ }
+diff --git a/apps/desktop/scripts/desktop-package-environment.d.mts b/apps/desktop/scripts/desktop-package-environment.d.mts
+index ec9da721..76c07e5e 100644
+--- a/apps/desktop/scripts/desktop-package-environment.d.mts
++++ b/apps/desktop/scripts/desktop-package-environment.d.mts
+@@ -20,7 +20,7 @@ export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv): N
+  * @returns Isolated environment with file-owned release settings.
+  */
+ export function loadDesktopPackageEnvironment(
+-  platform: 'win32' | 'darwin',
++  platform: 'win32' | 'darwin' | 'linux',
+   environment?: NodeJS.ProcessEnv,
+   appRoot?: string,
+   options?: { unsigned?: boolean, prepareOnly?: boolean },
+@@ -35,6 +35,6 @@ export function loadDesktopPackageEnvironment(
+  */
+ export function validateDesktopPackageEnvironment(
+   environment: NodeJS.ProcessEnv,
+-  target: { platform: 'win32' | 'darwin', arch: string },
++  target: { platform: 'win32' | 'darwin' | 'linux', arch: string },
+   options?: { unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean },
+ ): void
+diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
+index 83e9dbbc..2be5ebfd 100644
+--- a/apps/desktop/scripts/desktop-package-environment.mjs
++++ b/apps/desktop/scripts/desktop-package-environment.mjs
+@@ -39,7 +39,7 @@ export function localMacOSPackageEnvironment(environment = process.env) {
+  * Any defined Mac ZIP override rejects Windows, including an empty value; nonempty Windows overrides reject macOS.
+  * PACKAGE_TEST_RELEASE_ID overrides the test preset only; blank retains its configured ID.
+  * PACKAGE_WINDOWS_COMPRESSION_LEVEL selects 3 or 7 for Windows workflow builds; blank retains the file setting.
+- * @param {'win32' | 'darwin'} platform Target platform.
++ * @param {'win32' | 'darwin' | 'linux'} platform Target platform.
+  * @param {NodeJS.ProcessEnv} environment Parent environment, retained only for unrelated build tools.
+  * @param {string} appRoot Desktop application directory; relative credential paths resolve here.
+  * @param {{ unsigned?: boolean, prepareOnly?: boolean }} options Unsigned presets and Windows preparation-only presets never read signing credentials.
+@@ -113,7 +113,7 @@ function requireReadableFile(environment, name) {
+ /**
+  * Validate the packaging mode before preparation without invoking a token or Apple's services.
+  * @param {NodeJS.ProcessEnv} environment Selected local defaults or file-owned release settings.
+- * @param {{ platform: 'win32' | 'darwin', arch: string }} target Selected release target.
++ * @param {{ platform: 'win32' | 'darwin' | 'linux', arch: string }} target Selected release target.
+  * @param {{ unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean }} options Explicit packaging mode.
+  * @returns {void}
+  */
+@@ -121,9 +121,9 @@ export function validateDesktopPackageEnvironment(environment, target, options =
+   resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
+   resolveDesktopAppId(environment)
+   resolveNpmRegistry(environment)
+-  if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
++  if (target.platform === 'win32' || (target.platform === 'darwin' && !options.unsigned)) resolveDesktopPolicyEnvironment(environment)
+   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
+-  else resolveWindowsPackageSettings(environment)
++  else if (target.platform === 'win32') resolveWindowsPackageSettings(environment)
+   if (options.unsigned) return
+   if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+   if (target.platform === 'win32') {
+diff --git a/apps/desktop/scripts/desktop-toolchain-preflight.ts b/apps/desktop/scripts/desktop-toolchain-preflight.ts
+index ff855cfd..08c8dc1f 100644
+--- a/apps/desktop/scripts/desktop-toolchain-preflight.ts
++++ b/apps/desktop/scripts/desktop-toolchain-preflight.ts
+@@ -75,7 +75,7 @@ async function probeWindowsInstallerToolchain(environment: NodeJS.ProcessEnv): P
+  * @returns Every probe that failed, empty when the host can run the packaging sequence.
+  */
+ export async function probeDesktopToolchain(
+-  platform: 'darwin' | 'win32',
++  platform: 'darwin' | 'win32' | 'linux',
+   environment: NodeJS.ProcessEnv = process.env,
+ ): Promise<readonly DesktopToolchainProbeFailure[]> {
+   const failures: DesktopToolchainProbeFailure[] = []
+@@ -92,7 +92,7 @@ export async function probeDesktopToolchain(
+  * @returns Resolves when every probe passes.
+  */
+ export async function requireDesktopToolchain(
+-  platform: 'darwin' | 'win32',
++  platform: 'darwin' | 'win32' | 'linux',
+   environment: NodeJS.ProcessEnv = process.env,
+ ): Promise<void> {
+   const failures = await probeDesktopToolchain(platform, environment)
+diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
+index 39ff954b..b53b1267 100644
+--- a/apps/desktop/scripts/desktop-upload-plan.ts
++++ b/apps/desktop/scripts/desktop-upload-plan.ts
+@@ -21,6 +21,7 @@ const TARGETS = {
+   'mac-arm64': { platform: 'darwin', arch: 'arm64', os: 'mac' },
+   'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
+   'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
++  'linux-x64': { platform: 'linux', arch: 'x64', os: 'linux' },
+ } as const satisfies Record<DesktopPackageTargetName, {
+   readonly platform: NodeJS.Platform
+   readonly arch: string
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index d5522e3d..ca1040cc 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -66,7 +66,7 @@ export function createElectronBuilderConfig(
+   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
+   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
+   const packagesWindows = resolvedPlatform === 'win32'
+-  const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
++  const policy = resolvedPlatform === 'linux' || (packagesMacOS && unsigned) ? undefined : resolveDesktopPolicyEnvironment(env)
+   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
+   const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
+   if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
+@@ -79,7 +79,9 @@ export function createElectronBuilderConfig(
+     `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`,
+     // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
+     // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
+-    '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
++    '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*',
++    // Linux runs the Host under standalone Node, which cannot read ASAR, so the whole runtime stays on disk.
++    ...(resolvedPlatform === 'linux' ? ['**/dsh/**'] : [])]
+   const windowsSigner = packagesWindows && !unsigned
+     ? createWindowsTokenSigner({
+         certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
+@@ -256,6 +258,7 @@ export function createElectronBuilderConfig(
+     },
+     linux: {
+       category: 'Development',
++      executableName: 'deepseek-harness',
+       target: ['AppImage'],
+     },
+     nsis: {
+diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
+index b6bc6efb..7cae7e48 100644
+--- a/apps/desktop/scripts/package-target.ts
++++ b/apps/desktop/scripts/package-target.ts
+@@ -48,14 +48,14 @@ const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
+ const AUTOMATIC_BUILD_VERSION = 'auto'
+ 
+ /** Fixed platform and architecture identifiers exposed by package scripts. */
+-export type DesktopPackageTargetName = 'mac-arm64' | 'mac-x64' | 'win-x64'
++export type DesktopPackageTargetName = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /** One supported release target and its electron-builder selectors. */
+ export interface DesktopPackageTarget {
+   readonly name: DesktopPackageTargetName
+-  readonly platform: 'darwin' | 'win32'
++  readonly platform: 'darwin' | 'win32' | 'linux'
+   readonly arch: 'arm64' | 'x64'
+-  readonly builderPlatform: '--mac' | '--win'
++  readonly builderPlatform: '--mac' | '--win' | '--linux'
+   readonly builderArch: '--arm64' | '--x64'
+ }
+ 
+@@ -81,6 +81,13 @@ const TARGETS: Record<DesktopPackageTargetName, DesktopPackageTarget> = {
+     builderPlatform: '--win',
+     builderArch: '--x64',
+   },
++  'linux-x64': {
++    name: 'linux-x64',
++    platform: 'linux',
++    arch: 'x64',
++    builderPlatform: '--linux',
++    builderArch: '--x64',
++  },
+ }
+ 
+ /**
+@@ -181,6 +188,9 @@ export function resolveDesktopPackageTarget(
+   if (target.platform === 'win32' && (hostPlatform !== 'win32' || hostArch !== 'x64')) {
+     throw new Error('desktop package: win-x64 requires a Windows x64 build host')
+   }
++  if (target.platform === 'linux' && hostPlatform !== 'linux') {
++    throw new Error('desktop package: linux-x64 requires a Linux build host')
++  }
+   if (target.platform === 'darwin' && hostPlatform !== 'darwin') {
+     throw new Error(`desktop package: ${name} requires a macOS build host`)
+   }
+@@ -344,12 +354,17 @@ async function main(): Promise<void> {
+   if (invocation.skipNotarization) {
+     process.stdout.write('desktop package: skipping notarization and stapling; internal debugging only, not qualified for distribution or update publishing\n')
+   }
+-  const environment = target.platform === 'darwin' && invocation.unsigned
++  const environment = (target.platform === 'darwin' || target.platform === 'linux') && invocation.unsigned
+     ? localMacOSPackageEnvironment()
+     : loadDesktopPackageEnvironment(target.platform, process.env, APP_ROOT, {
+       unsigned: invocation.unsigned, prepareOnly: invocation.prepareOnly,
+     })
+   const productVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
++  if (target.platform === 'linux') {
++    // No DeepSeek policy or updater service exists for community Linux builds; give the builder a valid production policy.
++    environment.DSH_DESKTOP_AUTO_UPDATE_ENV ??= 'production'
++    environment.DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN ??= 'https://download.deepseek.com'
++  }
+   // Release settings come from the selected configuration files, so the version this run publishes is an
+   // argument; the environment variable below only carries it to the child processes that build.
+   const buildVersion = await resolveRequestedBuildVersion(invocation, productVersion, environment)
+@@ -478,7 +493,9 @@ export async function packageTarget(
+         { cwd: APP_ROOT, env: electronBuilderEnv, timeoutMs: 60_000 })
+     })
+   }
+-  await execute(invocation.unsigned ? ['run', 'build', '--profile', 'local'] : ['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
++  await execute(invocation.unsigned
++    ? ['run', 'build', '--scope', 'artifacts', '--profile', 'local']
++    : ['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
+   let preparationFailure: { error: unknown } | undefined
+   const executePreparation = async (args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): Promise<void> => {
+     if (preparationFailure !== undefined) throw preparationFailure.error
+@@ -522,7 +539,7 @@ export async function packageTarget(
+   }
+   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime'], electronBuilderEnv)
+   await execute(['run', 'prepare:packages'], targetEnv)
+-  await execute(['run', 'prepare:dsh', ...(signPrimaryRuntime ? ['--defer-runtime-smoke'] : [])], downloadEnv)
++  await execute(['run', 'prepare:dsh', ...(signPrimaryRuntime || target.platform === 'linux' ? ['--defer-runtime-smoke'] : [])], downloadEnv)
+   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime', '--dsh'], electronBuilderEnv)
+   if (invocation.prepareOnly) return
+   const buildMacArtifact = (artifact: DesktopPrepackagedArtifact) => execute(
+diff --git a/apps/desktop/scripts/prepare-cli.ts b/apps/desktop/scripts/prepare-cli.ts
+index d2b9e142..ad60996b 100644
+--- a/apps/desktop/scripts/prepare-cli.ts
++++ b/apps/desktop/scripts/prepare-cli.ts
+@@ -8,10 +8,10 @@ import { join } from 'node:path'
+  * @param destination - Physical runtime/cli directory prepared for the application.
+  * @param platform - Target Desktop operating system.
+  */
+-export function prepareDesktopCli(destination: string, platform: 'darwin' | 'win32'): void {
++export function prepareDesktopCli(destination: string, platform: 'darwin' | 'win32' | 'linux'): void {
+   const name = platform === 'win32' ? 'dsh.cmd' : 'dsh'
+   const command = join(destination, 'bin', name)
+   mkdirSync(join(destination, 'bin'), { recursive: true })
+   copyFileSync(join(import.meta.dirname, '..', 'cli', name), command)
+-  if (platform === 'darwin') chmodSync(command, 0o755)
++  if (platform !== 'win32') chmodSync(command, 0o755)
+ }
+diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
+index a0698880..02cec901 100644
+--- a/apps/desktop/scripts/prepare-dsh.ts
++++ b/apps/desktop/scripts/prepare-dsh.ts
+@@ -44,7 +44,9 @@ const STORE_ROOT = BUILD_PATHS.pnpmStore
+ const RUNTIME_ROOT = BUILD_PATHS.runtime
+ const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
+ const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
+-const NODE = join(BUILD_PATHS.electron, process.platform === 'win32' ? 'electron.exe' : 'Electron.app/Contents/MacOS/Electron')
++const NODE = join(BUILD_PATHS.electron, process.platform === 'win32'
++  ? 'electron.exe'
++  : process.platform === 'darwin' ? 'Electron.app/Contents/MacOS/Electron' : 'electron')
+ const PNPM = join(RUNTIME_ROOT, 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs')
+ 
+ function manifestVersion(path: string, subject: string): string {
+diff --git a/apps/desktop/scripts/prepare-runtime.ts b/apps/desktop/scripts/prepare-runtime.ts
+index 4e338532..be61c3c3 100644
+--- a/apps/desktop/scripts/prepare-runtime.ts
++++ b/apps/desktop/scripts/prepare-runtime.ts
+@@ -1,7 +1,7 @@
+ /** Prepare Desktop resources and publish their versions after every preparation stage succeeds. */
+ 
+ import { execFileSync } from 'node:child_process'
+-import { chmodSync, cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
++import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+ import { createRequire } from 'node:module'
+ import { join } from 'node:path'
+ import { parseArgs } from 'node:util'
+@@ -27,15 +27,31 @@ async function prepareElectron({ platform, arch }: DesktopTarget): Promise<strin
+     () => downloadArtifact({ version, platform, arch, artifactName: 'electron', cacheRoot: BUILD_PATHS.downloads }))
+   rmSync(BUILD_PATHS.electron, { recursive: true, force: true })
+   await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'extract:electron', () => extractZip(archive, { dir: BUILD_PATHS.electron }))
+-  const executable = join(BUILD_PATHS.electron, platform === 'win32' ? 'electron.exe' : 'Electron.app/Contents/MacOS/Electron')
++  const executable = join(BUILD_PATHS.electron, platform === 'win32'
++    ? 'electron.exe'
++    : platform === 'darwin' ? 'Electron.app/Contents/MacOS/Electron' : 'electron')
+   return execFileSync(executable, ['-p', 'process.versions.node'], {
+     encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+   }).trim()
+ }
+ 
+-function prepareCli({ platform, arch }: DesktopTarget): void {
++/** Download the standalone Node.js build that matches the Electron runtime, so Linux never runs sharp inside Electron. */
++async function prepareStandaloneNode(nodeVersion: string): Promise<void> {
++  const directory = `node-v${nodeVersion}-linux-x64`
++  const archive = join(BUILD_PATHS.downloads, `${directory}.tar.xz`)
++  if (!existsSync(archive)) {
++    const response = await fetch(`https://nodejs.org/dist/v${nodeVersion}/${directory}.tar.xz`)
++    if (!response.ok) throw new Error(`desktop runtime: Node download failed with ${response.status}`)
++    writeFileSync(archive, Buffer.from(await response.arrayBuffer()))
++  }
++  execFileSync('tar', ['-xJf', archive, '-C', join(RUNTIME_ROOT, 'bin'), '--strip-components=2', `${directory}/bin/node`])
++  chmodSync(join(RUNTIME_ROOT, 'bin', 'node'), 0o755)
++}
++
++async function prepareCli({ platform, arch }: DesktopTarget, nodeVersion: string): Promise<void> {
+   cpSync(join(import.meta.dirname, 'node-bin'), join(RUNTIME_ROOT, 'bin'), { recursive: true })
+   chmodSync(join(RUNTIME_ROOT, 'bin', 'node'), 0o755)
++  if (platform === 'linux') await prepareStandaloneNode(nodeVersion)
+   const cli = join(RUNTIME_ROOT, 'cli')
+   prepareDesktopCli(cli, platform)
+   if (platform === 'darwin') {
+@@ -67,7 +83,7 @@ async function main(): Promise<void> {
+   }
+   const { pnpm } = await readPrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime'))
+   if (pnpm === undefined) throw new Error('desktop runtime: primary-runtime manifest has no pnpm version')
+-  await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli', async () => { prepareCli(target) })
++  await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli', async () => { await prepareCli(target, nodeVersion) })
+   writeFileSync(join(RUNTIME_ROOT, 'versions.json'), `${JSON.stringify({
+     schemaVersion: 1,
+     node: nodeVersion,
+diff --git a/apps/desktop/scripts/retain-desktop-ci.ts b/apps/desktop/scripts/retain-desktop-ci.ts
+index e6722749..0ff16481 100644
+--- a/apps/desktop/scripts/retain-desktop-ci.ts
++++ b/apps/desktop/scripts/retain-desktop-ci.ts
+@@ -33,7 +33,8 @@ export function desktopReleasesRoot(env: NodeJS.ProcessEnv): string {
+  * @returns The exact label used by the later GitHub archival job.
+  */
+ export function resolveDesktopRetentionRunner(env: NodeJS.ProcessEnv): string {
+-  const target = resolveDesktopBuildTarget(env)
++  // Retention keeps publishing to DeepSeek's mac/Windows CI; a Linux target never reaches this script.
++  const target = resolveDesktopBuildTarget(env) as 'mac-arm64' | 'mac-x64' | 'win-x64'
+   const routes = desktopPublishRunnersSchema.parse(JSON.parse(required(env, 'DESKTOP_PUBLISH_RUNNERS')))
+   const route = routes[required(env, 'RUNNER_NAME')]
+   if (!route || !route.target.includes(target)
+@@ -50,7 +51,7 @@ export function resolveDesktopRetentionRunner(env: NodeJS.ProcessEnv): string {
+  * @returns Retained directory, including explicitly qualified debugging packages.
+  */
+ export async function retainDesktopCi(env: NodeJS.ProcessEnv, appRoot = resolve(import.meta.dirname, '..')): Promise<string> {
+-  const target = resolveDesktopBuildTarget(env)
++  const target = resolveDesktopBuildTarget(env) as 'mac-arm64' | 'mac-x64' | 'win-x64'
+   const runnerLabel = resolveDesktopRetentionRunner(env)
+   const windows = target === 'win-x64'
+   const platform = windows ? 'win32' : 'darwin'
+diff --git a/apps/desktop/scripts/smoke-packaged-runtime.ts b/apps/desktop/scripts/smoke-packaged-runtime.ts
+index 6c3c12c8..fe2b7719 100644
+--- a/apps/desktop/scripts/smoke-packaged-runtime.ts
++++ b/apps/desktop/scripts/smoke-packaged-runtime.ts
+@@ -12,11 +12,16 @@ const { values } = parseArgs({ options: { unsigned: { type: 'boolean', default:
+ const target = resolveDesktopBuildTarget()
+ const windows = target === 'win-x64'
+ const artifacts = desktopArtifactOutput(paths, { unsigned: values.unsigned, skipNotarization: values['skip-notarization'] }).directory
++const linux = target === 'linux-x64'
+ const application = windows ? join(artifacts, 'win-unpacked')
+-  : join(artifacts, target === 'mac-arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app', 'Contents')
+-const resources = join(application, windows ? 'resources' : 'Resources')
+-const executable = windows ? join(application, 'DeepSeek Harness.exe') : join(application, 'MacOS', 'DeepSeek Harness')
++  : linux ? join(artifacts, 'linux-unpacked')
++    : join(artifacts, target === 'mac-arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app', 'Contents')
++const resources = join(application, windows || linux ? 'resources' : 'Resources')
++const executable = windows ? join(application, 'DeepSeek Harness.exe')
++  : linux ? join(application, 'deepseek-harness')
++    : join(application, 'MacOS', 'DeepSeek Harness')
+ const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
+   resolveDesktopPackageTarget(target))
+ if (windows && !values.unsigned) await verifyWindowsCode(application)
+-await smokePreparedRuntime(join(resources, 'app.asar', 'dsh'), executable, join(resources, 'runtime'), descriptor)
++const smokeNode = linux ? join(resources, 'runtime', 'bin', 'node') : executable
++await smokePreparedRuntime(join(resources, linux ? 'app.asar.unpacked' : 'app.asar', 'dsh'), smokeNode, join(resources, 'runtime'), descriptor)
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index 8f9cd823..08abc7c6 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -207,13 +207,19 @@ interface RuntimeResources {
+ 
+ function runtimeResources(): RuntimeResources {
+   const development = !app.isPackaged
+-  const node = process.execPath
++  // Linux: sharp's libvips crashes when Electron's GLib leaks into the process (electron#46323), so the Host uses the bundled Node.
++  const node = process.platform === 'linux' && !development
++    ? join(process.resourcesPath, 'runtime', 'bin', 'node')
++    : process.execPath
+   const nodeBin = development ? join(app.getAppPath(), 'scripts', 'node-bin') : join(process.resourcesPath, 'runtime', 'bin')
+   const pnpm = (development ? process.env.DSH_DESKTOP_PNPM_ENTRY : undefined)
+     ?? (development ? join(app.getAppPath(), 'node_modules', 'pnpm', 'bin', 'pnpm.mjs')
+       : join(process.resourcesPath, 'runtime', 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'))
+   const dsh = (development ? process.env.DSH_DESKTOP_DSH_DIR : undefined)
+-    ?? (development ? join(app.getAppPath(), '.desktop-build', 'development', 'project') : join(app.getAppPath(), 'dsh'))
++    ?? (development ? join(app.getAppPath(), '.desktop-build', 'development', 'project')
++      : process.platform === 'linux'
++        ? join(process.resourcesPath, 'app.asar.unpacked', 'dsh')
++        : join(app.getAppPath(), 'dsh'))
+   return { node, nodeBin, pnpm, dsh }
+ }
+ 
+diff --git a/apps/desktop/tests/fixtures/pnpm-smoke.mjs b/apps/desktop/tests/fixtures/pnpm-smoke.mjs
+index 5d16769a..1522b425 100644
+--- a/apps/desktop/tests/fixtures/pnpm-smoke.mjs
++++ b/apps/desktop/tests/fixtures/pnpm-smoke.mjs
+@@ -13,7 +13,8 @@ import { delimiter, join } from 'node:path'
+  * @returns {Promise<void>} Resolves after execution and removal of the private installation.
+  */
+ export async function checkPnpm(resourcesRuntime) {
+-  assert.ok(process.versions.electron, 'Run the package-manager smoke with Electron Node mode')
++  // Linux Desktop hosts run under the bundled standalone Node, not Electron's Node mode (electron#46323).
++  assert.ok(process.versions.electron || process.platform === 'linux', 'Run the package-manager smoke with Electron Node mode')
+   assert.equal(existsSync(join(resourcesRuntime, 'pnpm')), false, 'Desktop must ship only primary-runtime pnpm')
+   const primary = join(resourcesRuntime, 'primary-runtime')
+   const pnpm = join(primary, 'dependencies', 'pnpm', 'bin', 'pnpm.mjs')
+@@ -36,9 +37,10 @@ export async function checkPnpm(resourcesRuntime) {
+ const assert = require('node:assert/strict')
+ assert.equal(require('desktop-pnpm-smoke-dependency').answer, 42)
+ assert.equal(process.execPath, ${JSON.stringify(process.execPath)})
+-assert.ok(process.versions.electron)
+-assert.ok(process.execArgv.includes('--expose-internals'))
+-assert.equal(typeof require('internal/modules/esm/loader').getOrInitializeCascadedLoader, 'function')
++const linuxHost = process.platform === 'linux'
++assert.ok(process.versions.electron || linuxHost)
++assert.ok(process.execArgv.includes('--expose-internals') || linuxHost)
++if (!linuxHost) assert.equal(typeof require('internal/modules/esm/loader').getOrInitializeCascadedLoader, 'function')
+ console.log('desktop-node-script-ok')
+ `)
+     const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => /^(?:systemroot|windir|comspec|LD_LIBRARY_PATH)$/iu.test(name)))
