@@ -1,26 +1,16 @@
 diff --git a/apps/desktop-host/src/cli.ts b/apps/desktop-host/src/cli.ts
-index 10757b7a..bff1d36f 100644
+index 10757b7a..db2e53c5 100644
 --- a/apps/desktop-host/src/cli.ts
 +++ b/apps/desktop-host/src/cli.ts
-@@ -2,6 +2,17 @@
+@@ -2,6 +2,7 @@
  
  import { basename, delimiter, dirname, join, resolve } from 'node:path'
  import { runCli } from '@deepseek-ai/dsh/lib/bin.js'
 +import { desktopSupportDirectory } from './runtime-layout.ts'
-+
-+/**
-+ * Locate the archive containing a packaged runtime.
-+ * @param runtimeDir - Prepared or ASAR-contained runtime directory.
-+ * @returns Parent archive path, or undefined for a prepared directory.
-+ */
-+export function runtimeArchivePath(runtimeDir: string): string | undefined {
-+  const parent = dirname(runtimeDir)
-+  return basename(parent) === 'app.asar' ? parent : undefined
-+}
  
  /**
   * Locate the archive containing a packaged runtime.
-@@ -39,5 +50,4 @@ if (import.meta.main) {
+@@ -39,5 +40,4 @@ if (import.meta.main) {
      await installWindowsCliSignals()
    }
    const runtimeDir = resolve(import.meta.dirname, '../../../..')
@@ -48,6 +38,19 @@ index 966e51a3..ef559f6c 100644
    const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
    const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
    reportSkippedBundles('dsh', profile)
+diff --git a/apps/desktop/cli/dsh b/apps/desktop/cli/dsh
+index ee657a3d..e4146054 100644
+--- a/apps/desktop/cli/dsh
++++ b/apps/desktop/cli/dsh
+@@ -11,4 +11,8 @@ while [ -L "$launcher" ]; do
+   esac
+ done
+ resources=$(CDPATH= cd -- "$(dirname -- "$launcher")/../../.." && pwd -P)
++if [ "$(uname -s)" = Linux ]; then
++  # Linux runs the Host and CLI on the bundled Node, never on Electron (electron#46323 breaks sharp).
++  exec "$resources/runtime/bin/node" --expose-internals "$resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" "$@"
++fi
+ ELECTRON_RUN_AS_NODE=1 exec "$resources/../MacOS/DeepSeek Harness" --expose-internals "$resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" "$@"
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
 index 2712ca4d..9c642aad 100644
 --- a/apps/desktop/package.json

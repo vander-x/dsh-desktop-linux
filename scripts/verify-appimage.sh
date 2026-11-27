@@ -3,7 +3,7 @@
 # Usage: scripts/verify-appimage.sh dist/DeepSeek-Harness-*.AppImage
 set -euo pipefail
 
-IMAGE=${1:?pass the AppImage path}
+IMAGE=$(realpath "${1:?pass the AppImage path}")
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
