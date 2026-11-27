@@ -13,7 +13,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Cheap gate: catches the patch classes that broke releases before any 7-minute build runs.
+      - run: scripts/check-patch.sh
+      - run: df -h /tmp
+
   build:
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
