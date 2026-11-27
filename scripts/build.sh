@@ -29,5 +29,5 @@ export DSH_GATE_CONCURRENCY=${DSH_GATE_CONCURRENCY:-2}
 CI=true pnpm install --frozen-lockfile
 pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64 -- --unsigned
 
-cp .desktop-build/targets/linux-x64/unsigned-artifacts/*.AppImage "$ROOT/dist/"
+cp apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/*.AppImage "$ROOT/dist/"
 ls -lh "$ROOT/dist"
