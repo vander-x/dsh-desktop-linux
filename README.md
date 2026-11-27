@@ -180,16 +180,14 @@ download the new release.
 
 ## FAQ
 
-**Is this official?** No. It is a community build; the application code is DeepSeek's (MIT).
-**Where do the binaries come from?** GitHub Actions builds them from the upstream tag named in the
-release notes. The workflow, patch and scripts are in this repository.
-**Does it phone home?** It runs DeepSeek's own app; upstream telemetry settings apply
-(`DSH_TELEMETRY_MODE=DISABLED` disables it).
-**Can I keep using my DeepSeek account?** Yes — the app signs in normally; an API key also works.
-**Why not just use the web app?** This is the desktop shell: local files, terminal, tray, background
-tasks. Same UI, real process.
-**Will my plugins work?** Plugins that only use the harness APIs do. Plugins that call Electron APIs
-from the Host process do not, because the Host runs on Node here.
+| Question | Answer |
+| --- | --- |
+| Is this official? | No. It is a community build; the application code is DeepSeek's, MIT licensed. |
+| Where do the binaries come from? | GitHub Actions builds them from the upstream tag named in each release. Workflow, patch and scripts are all here. |
+| Does it phone home? | It runs DeepSeek's own app, so upstream telemetry settings apply. `DSH_TELEMETRY_MODE=DISABLED` turns it off. |
+| Can I keep using my DeepSeek account? | Yes — the app signs in normally. An API key also works. |
+| Why not just use the web app? | This is the desktop shell: local files, terminal, tray, background tasks. Same UI, real process. |
+| Will my plugins work? | Those that use harness APIs do. Those that call Electron APIs from the Host process do not, because the Host runs on Node here. |
 
 ## License and credits
 
