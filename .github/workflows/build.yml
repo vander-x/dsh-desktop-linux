@@ -78,8 +78,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="v${{ steps.version.outputs.version }}"
+          upstream="dsh-v${{ steps.version.outputs.version }}"
+          sha=$(sha256sum dist/*.AppImage | cut -d' ' -f1)
+          # Upstream publishes a real changelog per tag; reuse it instead of a fixed string.
+          body=$(gh api "repos/deepseek-ai/deepseek-harness/releases/tags/$upstream" --jq .body 2>/dev/null || true)
+          {
+            echo "Unofficial Linux AppImage for DeepSeek Harness ${{ steps.version.outputs.version }}, built from upstream tag \`$upstream\` with [\`patches/linux-x64.patch\`](../blob/master/patches/linux-x64.patch)."
+            echo
+            echo "- **sha256**: \`$sha\`"
+            echo "- **requires**: x86_64, glibc >= 2.28, GTK3/NSS/ALSA, FUSE 2 (or \`--appimage-extract-and-run\`)"
+            echo "- **install**: \`curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/master/install.sh | bash\`"
+            if [ -n "$body" ]; then
+              echo
+              echo "## Upstream changes"
+              echo
+              printf '%s\n' "$body"
+            fi
+          } > notes.md
           gh release create "$tag" dist/*.AppImage \
             --repo "$GITHUB_REPOSITORY" \
             --title "DeepSeek Harness ${{ steps.version.outputs.version }} (Linux)" \
-            --notes "Unofficial AppImage built from upstream tag dsh-v${{ steps.version.outputs.version }} with patches/linux-x64.patch. Requires glibc 2.39+." \
+            --notes-file notes.md \
             || gh release upload "$tag" dist/*.AppImage --clobber --repo "$GITHUB_REPOSITORY"
