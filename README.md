@@ -120,6 +120,7 @@ Every hunk is upstream code; the columns say what breaks without it.
 | `apps/desktop-host/src/runtime-layout.ts` (new), `cli.ts`, `index.ts` | resolve the runtime directory for dev, ASAR and unpacked layouts | `../runtime` resolved to `app.asar.unpacked/runtime` after the move |
 | `apps/desktop/cli/dsh` | Linux branch using the bundled Node | the launcher was hardcoded to `Contents/MacOS/DeepSeek Harness` |
 | `smoke-packaged-runtime.ts`, `tests/fixtures/pnpm-smoke.mjs` | run the packaged smoke on the real Node and accept it | the smoke asserted Electron-only `process.versions.electron` / `--expose-internals` |
+| `scripts/libreoffice-packages.mjs` | prefer the `linux-<arch>-glibc` engine before falling back to WebAssembly | the selector built `linux-x64`, which never matches the published `linux-x64-glibc` package |
 
 Full diff: `patches/linux-x64.patch` (607 lines, 22 files).
 
@@ -170,9 +171,11 @@ download the new release.
 - **Unofficial and unsigned.** No Apple-style notarization, no DeepSeek signing key.
 - **`--no-sandbox`.** An AppImage cannot keep the SUID bit on `chrome-sandbox`, so the launcher
   disables Chromium's sandbox. Run it from a trusted location.
-- **Office runs on the WASM engine.** The native Linux engine exists on npm as
-  `@deepseek-ai/libreoffice-kit-linux-x64-glibc`, but upstream's selector asks for `linux-x64` and
-  falls back to WebAssembly. Slower, same output formats.
+- **Office now runs natively.** Upstream pins `@deepseek-ai/libreoffice-kit` 0.2.3, which has no Linux
+  prebuilt engine. `scripts/build.sh` upgrades that one dependency to 0.2.4 on Linux when the pinned
+  release lacks it, so DOCX/XLSX/PPTX conversion uses LibreOfficeKit instead of WebAssembly. That is
+  why the AppImage is ~411 MB instead of ~358 MB. `verify-appimage.sh` prints which engine the
+  artifact carries.
 - **Electron-only extensions.** The Host runs on the bundled Node, so plugins that call Electron
   APIs from the Host process will not work.
 - **Login shell probe warning** (`desktop login shell: /usr/bin/bash failed`) appears on some
