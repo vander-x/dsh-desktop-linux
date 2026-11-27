@@ -36,7 +36,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - if: steps.version.outputs.skip == '0'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libarchive-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ github.run_id }}
+          restore-keys: pnpm-store-
+
+      - if: steps.version.outputs.skip == '0'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libarchive-tools xvfb libfuse2
 
       - if: steps.version.outputs.skip == '0'
         uses: pnpm/action-setup@v4
@@ -53,7 +62,6 @@ jobs:
 
       - if: steps.version.outputs.skip == '0'
         run: |
-          sudo apt-get install -y --no-install-recommends xvfb libfuse2
           xvfb-run -a scripts/verify-appimage.sh dist/*.AppImage
 
       - if: steps.version.outputs.skip == '0'

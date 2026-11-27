@@ -552,7 +552,7 @@ index 6c3c12c8..fe2b7719 100644
 +const smokeNode = linux ? join(resources, 'runtime', 'bin', 'node') : executable
 +await smokePreparedRuntime(join(resources, linux ? 'app.asar.unpacked' : 'app.asar', 'dsh'), smokeNode, join(resources, 'runtime'), descriptor)
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 8f9cd823..08abc7c6 100644
+index 8f9cd823..9617b664 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
 @@ -207,13 +207,19 @@ interface RuntimeResources {
@@ -577,6 +577,21 @@ index 8f9cd823..08abc7c6 100644
    return { node, nodeBin, pnpm, dsh }
  }
  
+@@ -1240,9 +1246,12 @@ async function main(): Promise<void> {
+     tray?.relabel()
+   }
+   refreshApplicationMenu()
+-  const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
+-  if (process.platform === 'win32') {
++  const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico')
++    : process.platform === 'linux' ? join(process.resourcesPath, 'icon.png')
++      : join(process.resourcesPath, 'tray.ico')
++  if (process.platform === 'win32' || process.platform === 'linux') {
+     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
++    // Linux reads the shipped PNG through the StatusNotifier host of the desktop bar.
+     try {
+       tray = new DesktopTray({ iconPath: trayIconPath, locale: currentDesktopLocale,
+         open: () => { focusPrimaryWindow() }, quit: () => { app.quit() } })
 diff --git a/apps/desktop/tests/fixtures/pnpm-smoke.mjs b/apps/desktop/tests/fixtures/pnpm-smoke.mjs
 index 5d16769a..1522b425 100644
 --- a/apps/desktop/tests/fixtures/pnpm-smoke.mjs
