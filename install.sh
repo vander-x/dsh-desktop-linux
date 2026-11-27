@@ -35,3 +35,15 @@ StartupWMClass=deepseek-ai-dsh-desktop
 EOF
 
 echo "installed: $DEST/dsh.AppImage ($(basename "$URL"))"
+
+# The AppImage carries the 1024px product icon; without installing it the desktop entry shows a blank icon.
+ICON_TMP=$(mktemp -d)
+trap 'rm -rf "$ICON_TMP"' EXIT
+(cd "$ICON_TMP" && "$DEST/dsh.AppImage" --appimage-extract 'usr/share/icons/hicolor/1024x1024/apps/deepseek-harness.png' >/dev/null 2>&1 || true)
+if [[ -f $ICON_TMP/squashfs-root/usr/share/icons/hicolor/1024x1024/apps/deepseek-harness.png ]]; then
+  install -Dm644 "$ICON_TMP/squashfs-root/usr/share/icons/hicolor/1024x1024/apps/deepseek-harness.png" \
+    "$HOME/.local/share/icons/hicolor/1024x1024/apps/deepseek-harness.png"
+  echo "icon: installed"
+else
+  echo "icon: not found inside the AppImage" >&2
+fi
