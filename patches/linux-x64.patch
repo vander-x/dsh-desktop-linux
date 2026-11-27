@@ -454,7 +454,7 @@ index a0698880..02cec901 100644
  
  function manifestVersion(path: string, subject: string): string {
 diff --git a/apps/desktop/scripts/prepare-runtime.ts b/apps/desktop/scripts/prepare-runtime.ts
-index 4e338532..b66050a7 100644
+index 4e338532..be61c3c3 100644
 --- a/apps/desktop/scripts/prepare-runtime.ts
 +++ b/apps/desktop/scripts/prepare-runtime.ts
 @@ -1,7 +1,7 @@
@@ -466,7 +466,7 @@ index 4e338532..b66050a7 100644
  import { createRequire } from 'node:module'
  import { join } from 'node:path'
  import { parseArgs } from 'node:util'
-@@ -27,15 +27,40 @@ async function prepareElectron({ platform, arch }: DesktopTarget): Promise<strin
+@@ -27,15 +27,31 @@ async function prepareElectron({ platform, arch }: DesktopTarget): Promise<strin
      () => downloadArtifact({ version, platform, arch, artifactName: 'electron', cacheRoot: BUILD_PATHS.downloads }))
    rmSync(BUILD_PATHS.electron, { recursive: true, force: true })
    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'extract:electron', () => extractZip(archive, { dir: BUILD_PATHS.electron }))
@@ -480,17 +480,8 @@ index 4e338532..b66050a7 100644
  }
  
 -function prepareCli({ platform, arch }: DesktopTarget): void {
-+/** Point bin/node at the Node the primary runtime already ships, so Linux never runs sharp inside Electron and the AppImage carries one copy. */
++/** Download the standalone Node.js build that matches the Electron runtime, so Linux never runs sharp inside Electron. */
 +async function prepareStandaloneNode(nodeVersion: string): Promise<void> {
-+  const link = join(RUNTIME_ROOT, 'bin', 'node')
-+  const bundled = join(RUNTIME_ROOT, 'primary-runtime', 'dependencies', 'node', 'bin', 'node')
-+  if (existsSync(bundled)) {
-+    // A shell shim survives electron-builder (it dereferences symlinks) and keeps PATH resolution.
-+    rmSync(link, { force: true })
-+    writeFileSync(link, '#!/bin/sh\nexec "$(dirname "$0")/../primary-runtime/dependencies/node/bin/node" "$@"\n', { mode: 0o755 })
-+    chmodSync(link, 0o755)
-+    return
-+  }
 +  const directory = `node-v${nodeVersion}-linux-x64`
 +  const archive = join(BUILD_PATHS.downloads, `${directory}.tar.xz`)
 +  if (!existsSync(archive)) {
@@ -499,7 +490,7 @@ index 4e338532..b66050a7 100644
 +    writeFileSync(archive, Buffer.from(await response.arrayBuffer()))
 +  }
 +  execFileSync('tar', ['-xJf', archive, '-C', join(RUNTIME_ROOT, 'bin'), '--strip-components=2', `${directory}/bin/node`])
-+  chmodSync(link, 0o755)
++  chmodSync(join(RUNTIME_ROOT, 'bin', 'node'), 0o755)
 +}
 +
 +async function prepareCli({ platform, arch }: DesktopTarget, nodeVersion: string): Promise<void> {
@@ -509,7 +500,7 @@ index 4e338532..b66050a7 100644
    const cli = join(RUNTIME_ROOT, 'cli')
    prepareDesktopCli(cli, platform)
    if (platform === 'darwin') {
-@@ -67,7 +92,7 @@ async function main(): Promise<void> {
+@@ -67,7 +83,7 @@ async function main(): Promise<void> {
    }
    const { pnpm } = await readPrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime'))
    if (pnpm === undefined) throw new Error('desktop runtime: primary-runtime manifest has no pnpm version')

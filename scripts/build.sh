@@ -11,7 +11,9 @@ if [[ -z $VERSION ]]; then
   VERSION="dsh-v$(npm view @deepseek-ai/dsh@latest version)"
 fi
 
-mkdir -p "$ROOT/dist"
+mkdir -p "$ROOT/dist" "$ROOT/.build/tmp"
+# /tmp is a small tmpfs on many systems; keep build scratch on disk instead.
+export TMPDIR="$ROOT/.build/tmp"
 CURRENT=$(git -C "$ROOT/.build/upstream" describe --tags 2>/dev/null || true)
 if [[ $CURRENT != "$VERSION" ]]; then
   rm -rf "$ROOT/.build/upstream"
