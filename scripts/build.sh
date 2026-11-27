@@ -31,8 +31,15 @@ cd "$ROOT/.build/upstream"
 # The host typecheck needs more heap than Node's default, and gate parallelism drives peak memory.
 export NODE_OPTIONS=--max-old-space-size=6144
 export DSH_GATE_CONCURRENCY=${DSH_GATE_CONCURRENCY:-2}
-# CI=true keeps lefthook's postinstall from rewriting the user's global core.hooksPath.
+# CI=true keeps lefthook's postinstall from rewriting the user's global core.hooksdir.
 CI=true pnpm install --frozen-lockfile
+
+# Native Office engine: upstream pins a kit release without Linux prebuilts until 0.2.4, so opt in when it is missing.
+if ! node -e "const d=require('./node_modules/@deepseek-ai/libreoffice-kit/package.json');process.exit(Object.keys(d.optionalDependencies??{}).some(k=>k.includes('linux'))?0:1)"; then
+  echo "office: installed kit has no Linux engine, upgrading to 0.2.4"
+  pnpm --filter @deepseek-ai/dsh-office-kit --filter @deepseek-ai/dsh-web-app add @deepseek-ai/libreoffice-kit@0.2.4
+fi
+
 pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64 -- --unsigned
 
 cp apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/*.AppImage "$ROOT/dist/"
